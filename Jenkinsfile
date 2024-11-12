@@ -28,13 +28,14 @@ pipeline {
         
         stage('Push to DockerHub') {
             steps {
-                script {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
                     sh """
+                        echo "${DOCKERHUB_PASS}" | docker login -u "${DOCKERHUB_USER}" --password-stdin
                         docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
                         docker push ${DOCKER_IMAGE}:latest
                     """
-                }
-            }
+        }
+    }
         }
         
         stage('Update Kubernetes Manifests') {
