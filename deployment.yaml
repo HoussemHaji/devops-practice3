@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-kubernetes-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hello-kubernetes-app
+  template:
+    metadata:
+      labels:
+        app: hello-kubernetes-app
+    spec:
+      containers:
+      - name: hello-kubernetes-app
+        image: lh0ss/hello-kubernetes-app:v1
+        ports:
+        - containerPort: 3000
