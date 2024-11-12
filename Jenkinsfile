@@ -3,10 +3,9 @@ pipeline {
     
     environment {
         DOCKER_IMAGE = 'lh0ss/hello-kubernetes-app'
-        DOCKER_TAG = "latest"
-        GIT_REPO = 'https://github.com/votre-repo/votre-app.git'
-        KUBE_CONFIG = credentials('kubeconfig')
-        APP_NAMESPACE = 'webapp'
+        DOCKER_TAG = "${BUILD_NUMBER}"
+        KUBECONFIG = credentials('kubeconfig')
+        GIT_REPO = 'https://github.com/HoussemHaji/devops-practice3'
     }
     
     stages {
@@ -16,37 +15,47 @@ pipeline {
             }
         }
         
-        stage('Setup Kubernetes Namespace') {
+        stage('Build Docker Image') {
             steps {
                 script {
                     sh """
-                        kubectl create namespace ${APP_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+                        docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
+                        docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
                     """
                 }
             }
         }
         
-        
-        stage('Build Docker Image') {
+        stage('Push to DockerHub') {
             steps {
-                sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
+                script {
+                    sh """
+                        docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
+                        docker push ${DOCKER_IMAGE}:latest
+                    """
+                }
             }
         }
         
-        stage('Push to DockerHub') {
+        stage('Update Kubernetes Manifests') {
             steps {
-                sh "docker push ${DOCKER_IMAGE}:latest"
+                script {
+                    // Update deployment.yaml with new image tag
+                    sh """
+                        sed -i 's|image: ${DOCKER_IMAGE}:[^ ]*|image: ${DOCKER_IMAGE}:${DOCKER_TAG}|' kubernetes/deployment.yaml
+                    """
+                }
             }
         }
         
         stage('Deploy to Kubernetes') {
             steps {
                 script {
-                    ansiblePlaybook(
-                        playbook: 'k8s-deploy-nodeport.yml',
-                        inventory: 'inventory.ini',
-                        extras: "-e docker_tag=${DOCKER_TAG} -e namespace=${APP_NAMESPACE}"
-                    )
+                    sh """
+                        export KUBECONFIG=\${KUBECONFIG}
+                        kubectl apply -f kubernetes/deployment.yaml
+                        kubectl apply -f kubernetes/service.yaml
+                    """
                 }
             }
         }
@@ -55,26 +64,35 @@ pipeline {
             steps {
                 script {
                     sh """
-                        kubectl -n ${APP_NAMESPACE} get pods -l app=webapp
-                        kubectl -n ${APP_NAMESPACE} get svc webapp-service
-                        echo "Waiting for pods to be ready..."
-                        kubectl -n ${APP_NAMESPACE} wait --for=condition=ready pod -l app=webapp --timeout=300s
-                        
-                        # Obtenir le NodePort
-                        NODE_PORT=\$(kubectl -n ${APP_NAMESPACE} get svc webapp-service -o jsonpath='{.spec.ports[0].nodePort}')
-                        echo "Application accessible at: http://localhost:\${NODE_PORT}"
+                        export KUBECONFIG=\${KUBECONFIG}
+                        kubectl rollout status deployment/hello-kubernetes-app
+                        kubectl get services hello-kubernetes-service
+                    """
+                }
+            }
+        }
+        
+        stage('Run Ansible Playbook') {
+            steps {
+                ansiblePlaybook(
+                    playbook: 'ansible/configure-nagios.yml',
+                    inventory: 'ansible/inventory.ini'
+                )
+            }
+        }
+        
+        stage('Health Check') {
+            steps {
+                script {
+                    sh """
+                        # Get NodePort
+                        export NODE_PORT=\$(kubectl get svc your-app-service -o jsonpath='{.spec.ports[0].nodePort}')
+                        # Health check using curl
+                        curl -f http://localhost:\${NODE_PORT}/health || exit 1
                     """
                 }
             }
         }
     }
-    
-    post {
-        always {
-            sh 'docker logout'
-        }
-        success {
-            echo 'Deployment successful!'
-        }
-    }
+ 
 }
