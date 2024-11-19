@@ -10,6 +10,14 @@ pipeline {
                 git 'https://github.com/HoussemHaji/devops-practice3'
             }
         }
+        stage('Debug Docker Environment') {
+            steps {
+                sh 'docker --version'
+                sh 'docker info'
+                sh 'env'
+            }
+}
+
         stage('Build Docker Image') {
             steps {
                 script {
