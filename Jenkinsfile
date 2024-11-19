@@ -1,99 +1,46 @@
 pipeline {
     agent any
-    
     environment {
-        DOCKER_IMAGE = 'lh0ss/hello-kubernetes-app'
-        DOCKER_TAG = "${BUILD_NUMBER}"
-        KUBECONFIG = credentials('kubeconfig')
-        GIT_REPO = 'https://github.com/HoussemHaji/devops-practice3'
+        DOCKER_HUB_REPO = 'lh0ss/hello-kubernetes-app'
+        DOCKER_CREDENTIALS = '8b7fad91-97b1-4551-a552-b1328a35911c'
     }
-    
     stages {
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
-                git branch: 'master', url: "${GIT_REPO}"
+                git branch: 'master', url: 'https://github.com/HoussemHaji/devops-practice3'
             }
         }
-        
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh """
-                        docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
-                        docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
-                    """
+                    docker.build("${DOCKER_HUB_REPO}:${env.BUILD_NUMBER}")
                 }
             }
         }
-        
         stage('Push to DockerHub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
-                    sh """
-                        echo "${DOCKERHUB_PASS}" | docker login -u "${DOCKERHUB_USER}" --password-stdin
-                        docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
-                        docker push ${DOCKER_IMAGE}:latest
-                    """
-        }
-    }
-        }
-        
-        stage('Update Kubernetes Manifests') {
-            steps {
                 script {
-                    // Update deployment.yaml with new image tag
-                    sh """
-                        sed -i 's|image: ${DOCKER_IMAGE}:[^ ]*|image: ${DOCKER_IMAGE}:${DOCKER_TAG}|' kubernetes/deployment.yaml
-                    """
+                    docker.withRegistry('https://registry.hub.docker.com', DOCKER_CREDENTIALS) {
+                        docker.image("${DOCKER_HUB_REPO}:${env.BUILD_NUMBER}").push()
+                    }
                 }
             }
         }
-        
         stage('Deploy to Kubernetes') {
             steps {
                 script {
                     sh """
-                        export KUBECONFIG=\${KUBECONFIG}
-                        kubectl apply -f kubernetes/deployment.yaml
-                        kubectl apply -f kubernetes/service.yaml
-                    """
-                }
-            }
-        }
-        
-        stage('Verify Deployment') {
-            steps {
-                script {
-                    sh """
-                        export KUBECONFIG=\${KUBECONFIG}
-                        kubectl rollout status deployment/hello-kubernetes-app
-                        kubectl get services hello-kubernetes-service
-                    """
-                }
-            }
-        }
-        
-        stage('Run Ansible Playbook') {
-            steps {
-                ansiblePlaybook(
-                    playbook: 'ansible/configure-nagios.yml',
-                    inventory: 'ansible/inventory.ini'
-                )
-            }
-        }
-        
-        stage('Health Check') {
-            steps {
-                script {
-                    sh """
-                        # Get NodePort
-                        export NODE_PORT=\$(kubectl get svc your-app-service -o jsonpath='{.spec.ports[0].nodePort}')
-                        # Health check using curl
-                        curl -f http://localhost:\${NODE_PORT}/health || exit 1
+                    ansible-playbook -i inventory.ini deploy.yaml
                     """
                 }
             }
         }
     }
- 
+    post {
+        always {
+            script {
+                sh 'ansible-playbook -i inventory.ini monitor.yaml'
+            }
+        }
+    }
 }

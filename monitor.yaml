@@ -1,0 +1,6 @@
+- name: Monitor Kubernetes Nodes
+  hosts: k8s
+  tasks:
+    - name: Check Node Status
+      shell: |
+        kubectl get nodes
