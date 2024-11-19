@@ -1,8 +1,0 @@
-- name: Deploy to Kubernetes
-  hosts: k8s
-  tasks:
-    - name: Apply Kubernetes Deployment
-      shell: |
-        kubectl apply -f kubernetes-deployment.yaml
-      args:
-        chdir: "{{ lookup('env', 'WORKSPACE') }}"  

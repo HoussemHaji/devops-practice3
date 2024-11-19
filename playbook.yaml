@@ -1,5 +1,5 @@
 - name: Monitor Kubernetes Nodes
-  hosts: k8s
+  hosts: localhost
   tasks:
     - name: Check Node Status
       shell: |
