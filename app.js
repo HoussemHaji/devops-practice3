@@ -3,7 +3,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('Hello, Kubernetes version');
+    res.send('Hello, Kubernetes version 1');
 });
 
 app.listen(PORT, () => {

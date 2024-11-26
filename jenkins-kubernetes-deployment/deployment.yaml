@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
       - name: hello-kubernetes-app
-        image: lh0ss/hello-kubernetes-app:latest
+        image: lh0ss/hello-kubernetes-app:2
         ports:
         - containerPort: 3000
