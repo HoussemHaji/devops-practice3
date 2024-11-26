@@ -1,65 +1,32 @@
 pipeline {
-  agent {
-    kubernetes {
-      label 'my-kubernetes-agent'
-      yaml """
-apiVersion: v1
-kind: Pod
-metadata:
-  labels:
-    jenkins/label: my-kubernetes-agent
-spec:
-  containers:
-  - name: docker
-    image: docker:20.10.24
-    command:
-    - cat
-    tty: true
-    volumeMounts:
-    - name: docker-sock
-      mountPath: /var/run/docker.sock
-  volumes:
-  - name: docker-sock
-    hostPath:
-      path: /var/run/docker.sock
-"""
+    agent any
+    environment {
+        DOCKER_HUB_REPO = 'lh0ss/hello-kubernetes-app'
+        DOCKER_CREDENTIALS = '8b7fad91-97b1-4551-a552-b1328a35911c'
     }
-  }
-
-  environment {
-    DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials') // Replace with your DockerHub credentials ID
-    KUBECONFIG = credentials('kubernetes-config') // Replace with your kubeconfig credentials ID
-  }
-
-  stages {
-    stage('Clone repository') {
-      steps {
-        git 'https://github.com/HoussemHaji/devops-practice3'
-      }
-    }
-
-    stage('Build and push Docker image') {
-      steps {
-        container('docker') {
-          script {
-            sh 'docker login -u $DOCKERHUB_CREDENTIALS_USR -p $DOCKERHUB_CREDENTIALS_PSW'
-            sh 'docker build -t lh0ss/hello-kubernetes-app:latest .'
-            sh 'docker push lh0ss/hello-kubernetes-app:latest'
-          }
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git branch: 'master', url: 'https://github.com/HoussemHaji/devops-practice3'
+            }
         }
-      }
-    }
-
-    stage('Deploy to Kubernetes') {
-      steps {
-        container('docker') {
-          script {
-            // Set up kubectl using the kubeconfig credentials
-            writeFile file: '/root/.kube/config', text: KUBECONFIG
-            sh 'kubectl apply -f kubernetes/deployment.yaml'
-          }
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    docker.build("${DOCKER_HUB_REPO}:${env.BUILD_NUMBER}")
+                }
+            }
         }
-      }
+        stage('Push to DockerHub') {
+            steps {
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', DOCKER_CREDENTIALS) {
+                        docker.image("${DOCKER_HUB_REPO}:${env.BUILD_NUMBER}").push()
+                    }
+                }
+            }
+        }
+        
     }
-  }
+    
 }
