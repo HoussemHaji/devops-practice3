@@ -2,7 +2,7 @@ pipeline {
     agent any
     environment {
         DOCKER_HUB_REPO = 'lh0ss/hello-kubernetes-app'
-        DOCKER_CREDENTIALS = '8b7fad91-97b1-4551-a552-b1328a35911c'
+        DOCKER_CREDENTIALS = 'dockerhub-credentials'
     }
     stages {
         stage('Checkout Code') {
